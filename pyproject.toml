@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.128.0",
     "openai>=2.16.0",
     "pydantic>=2.12.5",
+    "pytest-html>=4.2.0",
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.22",
     "qdrant-client>=1.16.2",
@@ -16,6 +17,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.0.2",
+    "pytest-html>=4.2.0",
     "ruff>=0.14.14",
 ]

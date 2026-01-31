@@ -20,7 +20,9 @@ def allowed_sources(retrieved) -> Set[str]:
 def filter_evidence(data: Dict[str, Any], allowed: Set[str]) -> Dict[str, Any]:
     def keep(items):
         out = []
-        for it in items:
+        for it in items if isinstance(items, list) else []:
+            if not isinstance(it, dict):
+                continue
             ev = it.get("evidence")
             if isinstance(ev, str) and ev in allowed:
                 out.append(it)
@@ -33,20 +35,46 @@ def filter_evidence(data: Dict[str, Any], allowed: Set[str]) -> Dict[str, Any]:
     }
 
 
+def _safe_json_loads(raw: str) -> Dict[str, Any]:
+    """
+    Best-effort JSON parse. If model outputs non-JSON, return empty schema.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return {"decisions": [], "action_items": [], "risks_or_open_questions": []}
+    try:
+        return json.loads(raw)
+    except Exception:
+        # fallback: try to extract the first {...} block
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            try:
+                return json.loads(raw[start : end + 1])
+            except Exception:
+                pass
+    return {"decisions": [], "action_items": [], "risks_or_open_questions": []}
+
+
 def summarize(meeting_id: str) -> Dict[str, Any]:
     retrieved = retrieve(
         meeting_id=meeting_id,
         question="decisions action items owners due dates risks open questions",
         top_k=12,
     )
+
+    # If nothing retrieved, return empty schema deterministically
+    if not retrieved:
+        return {"decisions": [], "action_items": [], "risks_or_open_questions": []}
+
     context = pack_context(retrieved, max_chunks=min(10, len(retrieved)))
-    allowed = sorted(list(allowed_sources(retrieved)))
+    allowed_list = sorted(list(allowed_sources(retrieved)))
+    allowed_set = set(allowed_list)
 
     oc = OpenAI(api_key=settings.openai_api_key)
 
-    # IMPORTANT: tell model the ONLY allowed evidence strings
     user_msg = USER_SUMMARY_PROMPT.replace("<<CONTEXT>>", context).replace(
-        "<<ALLOWED_EVIDENCE>>", "\n".join(allowed)
+        "<<ALLOWED_EVIDENCE>>", "\n".join(allowed_list)
     )
 
     resp = oc.chat.completions.create(
@@ -58,8 +86,8 @@ def summarize(meeting_id: str) -> Dict[str, Any]:
         temperature=0.1,
     )
 
-    raw = resp.choices[0].message.content or "{}"
-    data = json.loads(raw)
+    raw = resp.choices[0].message.content or ""
+    data = _safe_json_loads(raw)
 
-    # deterministic guardrail
-    return filter_evidence(data, set(allowed))
+    # deterministic guardrail: only keep items whose evidence is allowed
+    return filter_evidence(data, allowed_set)
