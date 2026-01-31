@@ -1,0 +1,9 @@
+[00:00:10] Alice: Today we need to decide on the deployment approach for the RAG service.
+[00:00:25] Bob: I suggest we start with a monolith FastAPI service and Qdrant via docker-compose.
+[00:00:40] Alice: Agreed. Let's keep it simple for the MVP.
+[00:01:10] Chen: What about observability?
+[00:01:25] Bob: We'll add structured JSON logs with request_id and latency timings.
+[00:02:00] Alice: Decision: use OpenAI for embeddings and generation for the take-home.
+[00:02:30] Chen: Action item: Bob will implement ingestion and indexing by Friday.
+[00:03:00] Alice: Action item: Chen will draft the README and productionization section by Friday.
+[00:03:30] Bob: We'll enforce citations in answers like [transcript1.txt:10-20].
