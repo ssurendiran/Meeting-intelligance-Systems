@@ -316,59 +316,60 @@ def run_main() -> None:
             if r.status_code != 200:
                 st.error("Something went wrong.")
             else:
-                stream_container = st.container(height=220)
-                with stream_container:
+                # Small scrollable container with auto-scroll
+                st.markdown(
+                    """
+                    <style>
+                    div[style*="height"][style*="px"], section div[style*="height"][style*="px"] {
+                        overflow-y: auto !important;
+                        -webkit-overflow-scrolling: touch;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                stream_box = st.container(height=260)
+                with stream_box:
                     components.html(
                         """
                         <script>
                         (function() {
-                            var doc = window.parent && window.parent.document ? window.parent.document : document;
-                            function scrollToBottom() {
-                                var pres = doc.querySelectorAll("pre");
-                                for (var i = pres.length - 1; i >= 0; i--) {
-                                    var pre = pres[i];
-                                    if (pre.scrollHeight > pre.clientHeight) {
-                                        pre.scrollTop = pre.scrollHeight;
-                                        return;
-                                    }
-                                    var el = pre.parentElement;
-                                    while (el && el !== doc.body) {
-                                        if (el.scrollHeight > el.clientHeight) {
-                                            el.scrollTop = el.scrollHeight;
-                                            return;
-                                        }
-                                        el = el.parentElement;
-                                    }
-                                }
-                                var divs = doc.querySelectorAll("div[style*='overflow'], div[style*='height']");
-                                for (var j = divs.length - 1; j >= 0; j--) {
-                                    if (divs[j].scrollHeight > divs[j].clientHeight) {
-                                        divs[j].scrollTop = divs[j].scrollHeight;
-                                        return;
-                                    }
-                                }
-                                try { doc.documentElement.scrollTop = doc.documentElement.scrollHeight; doc.body.scrollTop = doc.body.scrollHeight; } catch(e) {}
+                            var docs = [];
+                            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e) {}
+                            docs.push(document);
+                            function scrollToBottom(el) {
+                                if (el && el.scrollHeight > el.clientHeight)
+                                    el.scrollTop = el.scrollHeight;
                             }
-                            var t = setInterval(scrollToBottom, 200);
+                            function scrollOne(doc) {
+                                doc.querySelectorAll("pre, [class*='stMarkdown']").forEach(function(el) {
+                                    scrollToBottom(el);
+                                    var parent = el.parentElement;
+                                    while (parent && parent !== doc.body) {
+                                        if (parent.clientHeight > 50 && parent.clientHeight < 800 && parent.scrollHeight > parent.clientHeight) {
+                                            parent.scrollTop = parent.scrollHeight;
+                                            break;
+                                        }
+                                        parent = parent.parentElement;
+                                    }
+                                });
+                                doc.querySelectorAll("div[style*='height']").forEach(scrollToBottom);
+                            }
+                            function run() { docs.forEach(scrollOne); }
+                            run();
+                            var t = setInterval(run, 100);
                             setTimeout(function() { clearInterval(t); }, 120000);
                         })();
                         </script>
                         """,
                         height=0,
                     )
-                    placeholder = st.empty()
-                    accumulated = []
-                    suffix = "\n\nGenerating..."
-                    for chunk in r.iter_content(chunk_size=8192, decode_unicode=False):
-                        if chunk:
-                            accumulated.append(chunk.decode("utf-8", errors="replace"))
-                            raw = "".join(accumulated)
-                            display = _sanitize_generation_text(raw) + suffix
-                            placeholder.code(display, language=None)
-                            time.sleep(0.02)
-                        raw_final = "".join(accumulated).strip()
-                        transcript = _sanitize_generation_text(raw_final)
-                        placeholder.code(transcript, language=None)
+                    def stream_chunks():
+                        for chunk in r.iter_content(chunk_size=8192, decode_unicode=False):
+                            if chunk:
+                                yield chunk.decode("utf-8", errors="replace")
+                    full = st.write_stream(stream_chunks())
+                transcript = _sanitize_generation_text((full or "").strip())
                 st.session_state.generated_transcript = transcript
                 gen_filename = _topic_to_filename(topic)
                 st.session_state.gen_download_filename = gen_filename

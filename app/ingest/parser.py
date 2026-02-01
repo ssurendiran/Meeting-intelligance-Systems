@@ -79,4 +79,3 @@ def has_valid_transcript_format(text: str) -> bool:
         if LINE_RE.match(line.strip()):
             return True
     return False
-return False
