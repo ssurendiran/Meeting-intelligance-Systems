@@ -1,0 +1,22 @@
+{
+  "total_duration_seconds": 490,
+  "total_duration_display": "8:10",
+  "first_timestamp": "00:00:00",
+  "last_timestamp": "00:08:10",
+  "speaker_stats": [
+    {
+      "speaker": "Surendiran",
+      "turn_count": 25,
+      "word_count": 304,
+      "duration_seconds": 250,
+      "duration_display": "4:10"
+    },
+    {
+      "speaker": "Deepan",
+      "turn_count": 25,
+      "word_count": 312,
+      "duration_seconds": 240,
+      "duration_display": "4:00"
+    }
+  ]
+}

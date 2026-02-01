@@ -1,0 +1,27 @@
+{
+  "total_duration_seconds": 765,
+  "total_duration_display": "12:45",
+  "speaker_stats": [
+    {
+      "speaker": "Surendiran",
+      "turn_count": 18,
+      "word_count": 198,
+      "duration_seconds": 255,
+      "duration_display": "4:15"
+    },
+    {
+      "speaker": "Kumari",
+      "turn_count": 17,
+      "word_count": 193,
+      "duration_seconds": 255,
+      "duration_display": "4:15"
+    },
+    {
+      "speaker": "Malini",
+      "turn_count": 17,
+      "word_count": 193,
+      "duration_seconds": 255,
+      "duration_display": "4:15"
+    }
+  ]
+}

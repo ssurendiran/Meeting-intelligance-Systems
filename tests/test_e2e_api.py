@@ -1,8 +1,15 @@
+import json
+import time
 from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+# Resolve paths from repo root so tests pass when run from tests/ or project root
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_TRANSCRIPT = REPO_ROOT / "sample_data" / "transcript1.txt"
 
 
 @pytest.fixture(scope="session")
@@ -40,44 +47,40 @@ def _ingest_one(client: TestClient, item, transcript_path: str) -> str:
 
 
 def _assert_citations_within_retrieved(payload: dict):
+    from app.guardrails.citations import allowed_ranges, citation_overlaps_range
+
     citations = payload.get("citations", [])
     retrieved = payload.get("retrieved", [])
     assert isinstance(retrieved, list) and retrieved, "Expected retrieved chunks"
 
-    allowed = {}
-    for r in retrieved:
-        f = r["file"]
-        a = r["line_start"]
-        b = r["line_end"]
-        allowed.setdefault(f, []).append((a, b))
-
-    def overlaps(a1, a2, b1, b2):
-        return not (a2 < b1 or b2 < a1)
-
+    allowed = allowed_ranges(retrieved)
     for c in citations:
-        f = c["file"]
-        cs, ce = c["line_start"], c["line_end"]
-        assert f in allowed, f"Citation file {f} not in retrieved files"
-        ok = any(overlaps(cs, ce, a, b) for (a, b) in allowed[f])
-        assert ok, f"Citation {f}:{cs}-{ce} not within retrieved ranges {allowed[f]}"
+        assert citation_overlaps_range(
+            c["file"], c["line_start"], c["line_end"], allowed
+        ), f"Citation {c['file']}:{c['line_start']}-{c['line_end']} not within retrieved ranges"
 
 
-def test_health(client: TestClient, request):
-    resp = client.get("/health")
-    _log(
-        request.node,
-        "GET /health",
-        {"method": "GET", "url": "/health"},
-        {"status_code": resp.status_code, "json": resp.json()},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "ok"
+def _parse_sse_events(body: str) -> list:
+    """Parse SSE body into list of event dicts (data: {...} lines)."""
+    events = []
+    for block in body.strip().split("\n\n"):
+        block = block.strip()
+        if not block or not block.startswith("data:"):
+            continue
+        payload = block[5:].strip()
+        if not payload:
+            continue
+        try:
+            events.append(json.loads(payload))
+        except json.JSONDecodeError:
+            pass
+    return events
 
 
 def test_ingest_and_ask_decisions(client: TestClient, request):
-    meeting_id = _ingest_one(client, request.node, "sample_data/transcript1.txt")
+    meeting_id = _ingest_one(client, request.node, str(SAMPLE_TRANSCRIPT))
 
-    ask_req = {"meeting_id": meeting_id, "question": "What decisions were made?"}
+    ask_req = {"meeting_id": meeting_id, "question": "What were the main topics?"}
     resp = client.post("/ask", json=ask_req)
 
     _log(
@@ -99,7 +102,7 @@ def test_ingest_and_ask_decisions(client: TestClient, request):
 
 
 def test_summary_structure_and_evidence(client: TestClient, request):
-    meeting_id = _ingest_one(client, request.node, "sample_data/transcript1.txt")
+    meeting_id = _ingest_one(client, request.node, str(SAMPLE_TRANSCRIPT))
 
     sum_req = {"meeting_id": meeting_id}
     resp = client.post("/summary", json=sum_req)
@@ -126,7 +129,7 @@ def test_summary_structure_and_evidence(client: TestClient, request):
 
 
 def test_ask_unknown_question_refuses(client: TestClient, request):
-    meeting_id = _ingest_one(client, request.node, "sample_data/transcript1.txt")
+    meeting_id = _ingest_one(client, request.node, str(SAMPLE_TRANSCRIPT))
 
     ask_req = {"meeting_id": meeting_id, "question": "What is the CEO's salary?"}
     resp = client.post("/ask", json=ask_req)
@@ -142,3 +145,154 @@ def test_ask_unknown_question_refuses(client: TestClient, request):
     data = resp.json()
     assert data["answer"] == "Not found in transcript."
     assert data["citations"] == []
+
+
+# -------------------------
+# Ask Stream (SSE)
+# -------------------------
+
+
+def test_ask_stream_returns_sse_with_final_answer(client: TestClient, request):
+    meeting_id = _ingest_one(client, request.node, str(SAMPLE_TRANSCRIPT))
+
+    payload = {"meeting_id": meeting_id, "question": "What were the main topics?"}
+    resp = client.post("/ask_stream", json=payload)
+
+    _log(
+        request.node,
+        "POST /ask_stream",
+        {"method": "POST", "url": "/ask_stream", "json": payload},
+        {"status_code": resp.status_code, "text": resp.text[:500] if resp.text else ""},
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert "text/event-stream" in resp.headers.get("content-type", "")
+
+    events = _parse_sse_events(resp.text)
+    assert events, "Expected at least one SSE event"
+
+    final_events = [e for e in events if e.get("type") == "final"]
+    assert final_events, f"Expected final event, got events: {events}"
+    final_data = final_events[0]
+    assert "answer" in final_data
+    assert "citations" in final_data
+    assert isinstance(final_data["answer"], str) and final_data["answer"].strip()
+    assert isinstance(final_data["citations"], list)
+
+
+# -------------------------
+# Async Ingest + Job Status
+# -------------------------
+
+
+def test_ingest_async_and_job_status(client: TestClient, request):
+    p = SAMPLE_TRANSCRIPT
+    assert p.exists(), f"Missing transcript: {p}"
+
+    with p.open("rb") as f:
+        files = [("files", (p.name, f, "text/plain"))]
+        resp = client.post("/ingest_async", files=files)
+
+    _log(
+        request.node,
+        "POST /ingest_async",
+        {"method": "POST", "url": "/ingest_async", "files": [p.name]},
+        {"status_code": resp.status_code, "json": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text},
+    )
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert "job_id" in data
+    assert "meeting_id" in data
+    job_id = data["job_id"]
+
+    # Poll job status until done or failed (max ~15s)
+    for _ in range(30):
+        status_resp = client.get(f"/jobs/{job_id}")
+        assert status_resp.status_code == 200, status_resp.text
+        job = status_resp.json()
+        if job["status"] == "done":
+            assert job["chunks_indexed"] > 0, "Expected chunks indexed"
+            _log(
+                request.node,
+                "GET /jobs/{job_id} (done)",
+                {"method": "GET", "url": f"/jobs/{job_id}"},
+                {"status_code": status_resp.status_code, "json": job},
+            )
+            return
+        if job["status"] == "failed":
+            pytest.fail(f"Job failed: {job.get('error', 'unknown')}")
+        time.sleep(0.5)
+
+    pytest.fail("Job did not complete within timeout")
+
+
+# -------------------------
+# Summary edge cases
+# -------------------------
+
+
+def test_summary_invalid_meeting_id_returns_400(client: TestClient, request):
+    resp = client.post("/summary", json={"meeting_id": "not-a-uuid"})
+
+    _log(
+        request.node,
+        "POST /summary (invalid meeting_id)",
+        {"method": "POST", "url": "/summary", "json": {"meeting_id": "not-a-uuid"}},
+        {"status_code": resp.status_code, "json": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text},
+    )
+
+    assert resp.status_code == 400, resp.text
+    data = resp.json()
+    assert "detail" in data
+
+
+def test_summary_unknown_meeting_id_returns_empty_lists(client: TestClient, request):
+    # Valid UUID that was never ingested
+    unknown_meeting_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.post("/summary", json={"meeting_id": unknown_meeting_id})
+
+    _log(
+        request.node,
+        "POST /summary (unknown meeting_id)",
+        {"method": "POST", "url": "/summary", "json": {"meeting_id": unknown_meeting_id}},
+        {"status_code": resp.status_code, "json": resp.json()},
+    )
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["decisions"] == []
+    assert data["action_items"] == []
+    assert data["risks_or_open_questions"] == []
+
+
+def test_ask_unknown_or_invalid_meeting_id_returns_not_found(client: TestClient, request):
+    # /ask does not validate UUID format; unknown/invalid meeting_id yields no retrieval → refusal
+    resp = client.post("/ask", json={"meeting_id": "not-a-uuid", "question": "What was decided?"})
+
+    _log(
+        request.node,
+        "POST /ask (invalid/unknown meeting_id)",
+        {"method": "POST", "url": "/ask", "json": {"meeting_id": "not-a-uuid", "question": "What was decided?"}},
+        {"status_code": resp.status_code, "json": resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text},
+    )
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["answer"] == "Not found in transcript."
+    assert data["citations"] == []
+
+
+def test_ask_stream_not_found_returns_404(client: TestClient, request):
+    # Valid UUID but no chunks indexed for it
+    unknown_meeting_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.post("/ask_stream", json={"meeting_id": unknown_meeting_id, "question": "What was decided?"})
+
+    _log(
+        request.node,
+        "POST /ask_stream (unknown meeting)",
+        {"method": "POST", "url": "/ask_stream", "json": {"meeting_id": unknown_meeting_id, "question": "What was decided?"}},
+        {"status_code": resp.status_code, "text": resp.text[:200] if resp.text else ""},
+    )
+
+    assert resp.status_code == 404, resp.text

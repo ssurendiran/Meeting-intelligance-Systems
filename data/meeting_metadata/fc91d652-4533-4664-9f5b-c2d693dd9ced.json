@@ -1,0 +1,22 @@
+{
+  "total_duration_seconds": 765,
+  "total_duration_display": "12:45",
+  "first_timestamp": "00:00:00",
+  "last_timestamp": "00:12:45",
+  "speaker_stats": [
+    {
+      "speaker": "Ram",
+      "turn_count": 26,
+      "word_count": 313,
+      "duration_seconds": 390,
+      "duration_display": "6:30"
+    },
+    {
+      "speaker": "aara",
+      "turn_count": 26,
+      "word_count": 285,
+      "duration_seconds": 375,
+      "duration_display": "6:15"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "total_duration_seconds": 750,
+  "total_duration_display": "12:30",
+  "first_timestamp": "00:00:00",
+  "last_timestamp": "00:12:30",
+  "speaker_stats": [
+    {
+      "speaker": "Kumar",
+      "turn_count": 17,
+      "word_count": 201,
+      "duration_seconds": 255,
+      "duration_display": "4:15"
+    },
+    {
+      "speaker": "Ram",
+      "turn_count": 17,
+      "word_count": 192,
+      "duration_seconds": 255,
+      "duration_display": "4:15"
+    },
+    {
+      "speaker": "Raj",
+      "turn_count": 17,
+      "word_count": 192,
+      "duration_seconds": 240,
+      "duration_display": "4:00"
+    }
+  ]
+}

@@ -3,6 +3,8 @@ from app.guardrails.prompt_injection import detect_prompt_injection
 
 
 def pack_context(retrieved: List[Dict[str, Any]], max_chunks: int = 8) -> str:
+    """Build a RAG context string from retrieved chunks: deduplicate by chunk_id (keep up to max_chunks), format each as SOURCE file:line_start-line_end plus text, and prepend a security note if prompt-injection patterns are detected in the retrieved text.
+    Why available: Single place that prepares context for the LLM so /ask and /ask_stream use the same format and security handling."""
     # Deduplicate by chunk_id, keep highest score first (already sorted by qdrant)
     seen = set()
     kept = []

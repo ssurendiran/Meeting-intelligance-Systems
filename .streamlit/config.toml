@@ -1,0 +1,3 @@
+[server]
+# Max file upload size in MB (file_uploader). 1 = 1 MB.
+maxUploadSize = 1

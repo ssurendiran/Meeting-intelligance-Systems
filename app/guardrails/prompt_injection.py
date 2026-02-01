@@ -13,11 +13,8 @@ INJECTION_PATTERNS = [
 ]
 
 def detect_prompt_injection(text: str) -> Tuple[bool, str]:
-    """
-    Very lightweight heuristic detector.
-    We treat transcript as untrusted input. If it contains typical injection phrasing,
-    we still allow retrieval but we tighten generation instructions.
-    """
+    """Lightweight heuristic detector: returns (True, pattern) if text contains typical injection phrasing (e.g. 'ignore previous instructions', 'system prompt'). Transcript is untrusted; we still allow retrieval but prepend a security note to context.
+    Why available: Reduces risk of prompt injection via uploaded transcript content; used by pack_context."""
     t = (text or "").lower()
     for p in INJECTION_PATTERNS:
         if p in t:
