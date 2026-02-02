@@ -324,7 +324,8 @@ These are intentional tradeoffs for iteration speed.
 ---
 
 ## 🔮 Planned Improvements
-
+- Token Budgeting
+- Citation Based on metadata
 - Redis job queue
 - Worker-based ingestion
 - Async embedding
