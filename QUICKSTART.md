@@ -8,7 +8,7 @@ Get the Meeting Intelligence Platform running in minutes.
 
 - **Python 3.12**
 - **uv** (package manager) — [install](https://docs.astral.sh/uv/getting-started/installation/)
-- **Docker** (for Qdrant)
+- **Docker** 
 - **OpenAI API key**
 
 ---
