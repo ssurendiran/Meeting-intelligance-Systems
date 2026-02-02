@@ -316,58 +316,41 @@ def run_main() -> None:
             if r.status_code != 200:
                 st.error("Something went wrong.")
             else:
-                # Small scrollable container with auto-scroll
-                st.markdown(
-                    """
-                    <style>
-                    div[style*="height"][style*="px"], section div[style*="height"][style*="px"] {
-                        overflow-y: auto !important;
-                        -webkit-overflow-scrolling: touch;
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                stream_box = st.container(height=260)
-                with stream_box:
-                    components.html(
-                        """
-                        <script>
-                        (function() {
-                            var docs = [];
-                            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e) {}
-                            docs.push(document);
-                            function scrollToBottom(el) {
-                                if (el && el.scrollHeight > el.clientHeight)
-                                    el.scrollTop = el.scrollHeight;
-                            }
-                            function scrollOne(doc) {
-                                doc.querySelectorAll("pre, [class*='stMarkdown']").forEach(function(el) {
-                                    scrollToBottom(el);
-                                    var parent = el.parentElement;
-                                    while (parent && parent !== doc.body) {
-                                        if (parent.clientHeight > 50 && parent.clientHeight < 800 && parent.scrollHeight > parent.clientHeight) {
-                                            parent.scrollTop = parent.scrollHeight;
-                                            break;
-                                        }
-                                        parent = parent.parentElement;
-                                    }
-                                });
-                                doc.querySelectorAll("div[style*='height']").forEach(scrollToBottom);
-                            }
-                            function run() { docs.forEach(scrollOne); }
-                            run();
-                            var t = setInterval(run, 100);
-                            setTimeout(function() { clearInterval(t); }, 120000);
-                        })();
-                        </script>
-                        """,
-                        height=0,
-                    )
-                    def stream_chunks():
+                def stream_chunks():
+                    try:
                         for chunk in r.iter_content(chunk_size=8192, decode_unicode=False):
                             if chunk:
                                 yield chunk.decode("utf-8", errors="replace")
+                    except requests.exceptions.ChunkedEncodingError:
+                        yield "\n\n[Error: Connection interrupted. Please try again.]"
+                    except requests.exceptions.RequestException as e:
+                        yield f"\n\n[Error: {str(e)}]"
+                stream_box = st.container(height=260)
+                with stream_box:
+                    components.html(
+                        """<script>
+                        (function(){
+                            var pdoc = window.parent.document;
+                            function scrollAll() {
+                                requestAnimationFrame(function(){
+                                    pdoc.querySelectorAll('div').forEach(function(el){
+                                        var s = window.parent.getComputedStyle(el);
+                                        if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && 
+                                            el.scrollHeight > el.clientHeight && 
+                                            el.clientHeight > 100 && el.clientHeight < 350) {
+                                            el.scrollTop = el.scrollHeight;
+                                        }
+                                    });
+                                });
+                            }
+                            var obs = new MutationObserver(scrollAll);
+                            obs.observe(pdoc.body, {childList:true, subtree:true, characterData:true});
+                            setInterval(scrollAll, 50);
+                            setTimeout(function(){ obs.disconnect(); }, 120000);
+                        })();
+                        </script>""",
+                        height=0,
+                    )
                     full = st.write_stream(stream_chunks())
                 transcript = _sanitize_generation_text((full or "").strip())
                 st.session_state.generated_transcript = transcript
