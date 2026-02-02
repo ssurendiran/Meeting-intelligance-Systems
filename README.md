@@ -325,11 +325,11 @@ These are intentional tradeoffs for iteration speed.
 
 ## 🔮 Planned Improvements
 - Token Budgeting
-- Citation Based on metadata
+- Citation Based on metadata (as of now part of LLM)
 - Redis job queue
 - Worker-based ingestion
 - Async embedding
-- Cross-encoder reranking
+- Cross-encoder reranking 
 - Dynamic top_k
 - Metadata-only citations
 - PII redaction layer
@@ -338,7 +338,9 @@ These are intentional tradeoffs for iteration speed.
 - RAGAS evaluation
 - Drift monitoring
 - CI gating with evaluation datasets
-
+- Prompt versioning using UI
+- In House Model's for all the above and fallback mechanism for Models (reduce cost)
+- Circuit breakers and Graceful Degradation & Fault Tolerance
 ---
 
 ## 🧰 Tech Stack
