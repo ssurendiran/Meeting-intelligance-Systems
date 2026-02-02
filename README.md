@@ -18,7 +18,7 @@ Under the hood, this is a hybrid RAG (Retrieval-Augmented Generation) system wit
 
 ## 🚀 Why We Built It This Way
 
-Most RAG demos stop at "retrieve + answer". We went further and focused on:
+
 
 - **Idempotent ingestion** — no duplicate vector bloat
 - **Time-aware and speaker-aware filtering**
