@@ -1,4 +1,4 @@
-# Meeting Intelligence Platform
+# 🧠 Meeting Intelligence Platform
 
 **Scalable RAG-Based Transcript Understanding System**
 
@@ -6,7 +6,7 @@ A production-oriented Retrieval-Augmented Generation (RAG) system for ingesting 
 
 ---
 
-## Overview
+## 🚀 Overview
 
 This system enables:
 
@@ -19,9 +19,9 @@ This system enables:
 
 ---
 
-## System Architecture
+## 🏗 System Architecture
 
-### Ingestion Flow
+### 📥 Ingestion Flow
 
 ```
 User Upload
@@ -33,7 +33,7 @@ User Upload
   → Qdrant Vector Store (upsert)
 ```
 
-### Query Flow
+### 🔍 Query Flow
 
 ```
 User Query
@@ -49,9 +49,84 @@ User Query
   → Response
 ```
 
+### 📊 End-to-End Ask Flow
+
+```mermaid
+flowchart TD
+    subgraph UI
+        U1[User types question + meeting_id]
+    end
+    
+    subgraph API["API Layer"]
+        A1[POST /ask]
+        A2[Rate limit check]
+        A3{Prompt injection?}
+        A4[400 Reject]
+        A5[Memory Lookup by meeting_id]
+        A6[Parse time + speaker from question]
+    end
+    
+    subgraph MemoryLookup["Memory Lookup (ASK_MEMORY)"]
+        M1[Key: meeting_id]
+        M2{Entry exists?}
+        M3[Get stored_question, stored_answer, retrieved]
+        M4[No stored - first turn]
+    end
+    
+    subgraph UseForRetrieval["Use for Retrieval"]
+        R1a[use_for_retrieval = current question]
+        R1b[use_for_retrieval = stored_question + anchor]
+        F2{Follow-up? Short vague OR phrase}
+    end
+    
+    subgraph Rewrite
+        R2[Query rewrite LLM 1-3 queries]
+    end
+    
+    subgraph Retrieval["Retrieval"]
+        V1[Embed use_for_retrieval OpenAI]
+        V2[Qdrant Dense + Sparse RRF]
+        V3[Filter meeting_id, speaker, time]
+        V4[Return top_k chunks]
+    end
+    
+    subgraph Context["Context Build"]
+        C1[pack_context from retrieved]
+        C2[Add overview, time, speaker filters]
+        C3{Follow-up?}
+        C4[Prepend stored_answer + user follow-up to context]
+    end
+    
+    subgraph Answer
+        D1[generate_answer LLM]
+        D2[Citation guardrails]
+        D3[Save ask memory by meeting_id]
+    end
+    
+    subgraph Response
+        E1[AskResponse]
+        E2[UI shows answer + citations]
+    end
+    
+    U1 --> A1 --> A2 --> A3
+    A3 -->|Hit| A4
+    A3 -->|Pass| A5 --> M1 --> M2
+    M2 -->|No| M4 --> R1a
+    M2 -->|Yes| M3 --> A6 --> F2
+    F2 -->|Yes| R1b
+    F2 -->|No| R1a
+    R1a --> R2
+    R1b --> R2
+    R2 --> V1 --> V2 --> V3 --> V4
+    V4 --> C1 --> C2 --> C3
+    C3 -->|Yes| C4 --> D1
+    C3 -->|No| D1
+    D1 --> D2 --> D3 --> E1 --> E2
+```
+
 ---
 
-## 1. Synthetic Transcript Generation
+## 1️⃣ Synthetic Transcript Generation
 
 **Purpose:** Generate a synthetic meeting transcript based on user-provided topic and participants.
 
@@ -65,7 +140,7 @@ User Query
 
 ---
 
-## 2. User Input Validation
+## 2️⃣ User Input Validation
 
 **Required inputs:**
 
@@ -83,7 +158,7 @@ User Query
 
 ---
 
-## 3. Transcript Ingestion
+## 3️⃣ Transcript Ingestion
 
 **File requirements:**
 
@@ -100,7 +175,7 @@ User Query
 
 ---
 
-## 4. Chunking Logic
+## 4️⃣ Chunking Logic
 
 - **Strategy:** Tumbling window (no overlap), default 8 turns per chunk
 - **Per chunk:** `chunk_id`, text, `meeting_id`, `file`, `line_start`/`line_end`, `time_start`/`time_end`, `time_start_sec`/`time_end_sec`, `speakers`
@@ -108,7 +183,7 @@ User Query
 
 ---
 
-## 5. Embedding Pipeline
+## 5️⃣ Embedding Pipeline
 
 - **Batch size:** 32 chunks per API call
 - **Model:** `text-embedding-3-small` (1536 dimensions, cosine similarity)
@@ -116,7 +191,7 @@ User Query
 
 ---
 
-## 6. Vector Storage (Qdrant)
+## 6️⃣ Vector Storage (Qdrant)
 
 **Collection:** `meeting_chunks`
 
@@ -140,7 +215,7 @@ User Query
 
 ---
 
-## 7. Answer Generation
+## 7️⃣ Answer Generation
 
 1. Build context (max 8 chunks)
 2. Include metadata filters if applied
@@ -151,7 +226,7 @@ User Query
 
 ---
 
-## Citation Guardrails
+## 🛡️ Citation Guardrails
 
 - Citation must overlap retrieved chunks
 - Clamp line ranges to valid ranges
@@ -160,7 +235,7 @@ User Query
 
 ---
 
-## 8. Ask Memory (Multi-Turn Support)
+## 8️⃣ Ask Memory (Multi-Turn Support)
 
 **Current:** In-memory storage, lost on restart
 
@@ -168,7 +243,7 @@ User Query
 
 ---
 
-## 9. Future Scalability
+## 9️⃣ Future Scalability
 
 - Redis job queue
 - Worker-based ingestion
@@ -182,7 +257,7 @@ User Query
 
 ---
 
-## Tech Stack
+## 🧰 Tech Stack
 
 | Layer       | Technology              |
 |------------|--------------------------|
@@ -199,7 +274,7 @@ User Query
 
 ---
 
-## Summary
+## 📌 Summary
 
 Scalable, production-oriented Meeting Intelligence RAG system with:
 
