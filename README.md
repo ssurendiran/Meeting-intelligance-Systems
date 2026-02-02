@@ -78,30 +78,6 @@ User Query
 
 ```mermaid
 flowchart TD
-    U1[User question + meeting_id] --> A1[POST /ask]
-    A1 --> A2[Rate limit check]
-    A2 --> A3{Prompt injection?}
-    A3 -->|Yes| A4[Reject 400]
-    A3 -->|No| A5[Memory lookup by meeting_id]
-    A5 --> A6[Parse time & speaker]
-    A6 --> A7[Query rewrite 1–3 variations]
-    A7 --> A8[Embed query]
-    A8 --> A9[Qdrant Dense + Sparse search]
-    A9 --> A10[Apply filters: meeting_id + optional speaker/time]
-    A10 --> A11[Return top_k chunks]
-    A11 --> A12[Build context (pack_context, max 8)]
-    A12 --> A13[Generate answer (LLM)]
-    A13 --> A14[Citation guardrails: overlap + clamp + refuse]
-    A14 --> A15[Save ask memory]
-    A15 --> A16[Return answer + citations + retrieved]
-```
-
----
-
-## 📊 Multi-Turn Ask Flow (Implemented)
-
-```mermaid
-flowchart TD
     subgraph UI
         U1[User types question + meeting_id]
     end
