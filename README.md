@@ -369,101 +369,6 @@ I have kept v1 simple to move fast, but the architecture is designed to scale wi
 
 ---
 
-## 🔮 Future Enhancements & Scalability Paths (Full List)
-
-This section lists every planned enhancement, grouped by layer, with a clear scaling path.
-
-### A) Ingestion Scaling (Jobs + Workers)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | `/ingest` sync + `/ingest_async` (jobs in memory) |
-| 🔜 Next | Redis job queue, worker-based ingestion, jobs survive restarts, scale horizontally (N workers), API stays responsive under load |
-
-### B) Embedding Scaling (Throughput + Reliability + Cost)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | OpenAI embeddings, batch=32, retries |
-| 🔜 Next | Async embedding, parallel batch embedding, dedicated embedding workers, Postgres table for failed `chunk_id`s + retry later, in-house embedding models (cost reduction), fallback routing (in-house ↔ OpenAI) for reliability |
-
-### C) Retrieval Scaling (Accuracy + Latency)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | Dense + Sparse + RRF, static top_k |
-| 🔜 Next | Dynamic top_k based on query type, cross-encoder reranking when query is broad, semantic caching for repeated queries, Qdrant scaling (multi-instance / clustering), HNSW tuning + quantization (PQ/SQ) to reduce memory + speed search, data lifecycle: TTL expiration (e.g., delete after 90 days), soft delete + audit restore, backup/snapshots |
-
-### D) Context + Token Budgeting (Cost + Predictability)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | max 8 chunks in context |
-| 🔜 Next | Token budgeting per layer (retrieval width, context assembly, answer generation), adaptive context selection (use the best evidence first) |
-
-### E) Citations (Stronger + Simpler)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | LLM generates citations → we validate/clamp |
-| 🔜 Next | Metadata-only citations: citations are derived from the exact chunks sent to the model, removes LLM citation parsing entirely, makes citations always consistent and cheaper |
-
-### F) Guardrails + Security + Compliance
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | prompt injection checks + strict citation overlap rules |
-| 🔜 Next | PII redaction (query + transcript), sensitive content filters (rule-based + encoder-based), circuit breakers, graceful degradation / fault tolerance (if OpenAI down → fallback model; if Qdrant down → return clean error + keep API alive), audit logging: track which `meeting_id` was accessed and when |
-
-### G) Observability + Evaluation (Production Confidence)
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | working pipeline + basic logs |
-| 🔜 Next | Langfuse tracing (end-to-end observability), dataset creation for regression testing, RAGAS evaluation, drift monitoring (embedding drift / retrieval quality drift), CI gating (GitHub Actions): block deployments if quality drops on eval dataset |
-
-### H) Product/UX Enhancements
-
-| State | Implementation |
-|-------|----------------|
-| ✅ Today | Streamlit UI |
-| 🔜 Next | Prompt versioning in UI, better debugging view (retrieved chunks + scoring + filters), admin controls for retention policies and access auditing |
-
-### I) In-House Models + Fallback Strategy (Cost & Independence)
-
-| State | Implementation |
-|-------|----------------|
-| 🔜 Next | Local embedding model (SentenceTransformers / TEI), local reranker (cross-encoder), local generation model for cheaper mode, routing/fallback: in-house → OpenAI when needed (quality gate), OpenAI → in-house when cost or rate limits matter |
-
----
-
-## 🧰 Tech Stack
-
-| Layer            | Technology |
-|------------------|------------|
-| API              | FastAPI |
-| Server           | Uvicorn |
-| LLM              | OpenAI (gpt-4o-mini) |
-| Embeddings       | OpenAI (text-embedding-3-small) |
-| Vector DB        | Qdrant (dense + sparse + RRF) |
-| UI               | Streamlit |
-| Validation       | Pydantic |
-| Config           | python-dotenv |
-| Package Manager  | uv |
-| Python           | 3.12 |
-
----
-
-## 🧩 Why This Architecture Works
-
-- **Hybrid retrieval** improves recall (dense) + precision (sparse) with RRF fusion
-- **Metadata** enables time/speaker intelligence and strong filtering
-- **Citation guardrails** prevent hallucinated evidence
-- **Idempotent ingestion** prevents cost bloat
-- The **scaling paths are additive** — we can upgrade each layer without redesigning the whole system
-
----
-
 ## 🚀 Productionize, Scale & Deploy on a Hyper-Scaler
 
 ### 🔒 Productionize
@@ -621,6 +526,100 @@ But I personally designed:
 - Architecture decisions
 
 AI was a productivity multiplier, not the architect.
+
+---
+## 🔮 Future Enhancements & Scalability Paths (Full List)
+
+This section lists every planned enhancement, grouped by layer, with a clear scaling path.
+
+### A) Ingestion Scaling (Jobs + Workers)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | `/ingest` sync + `/ingest_async` (jobs in memory) |
+| 🔜 Next | Redis job queue, worker-based ingestion, jobs survive restarts, scale horizontally (N workers), API stays responsive under load |
+
+### B) Embedding Scaling (Throughput + Reliability + Cost)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | OpenAI embeddings, batch=32, retries |
+| 🔜 Next | Async embedding, parallel batch embedding, dedicated embedding workers, Postgres table for failed `chunk_id`s + retry later, in-house embedding models (cost reduction), fallback routing (in-house ↔ OpenAI) for reliability |
+
+### C) Retrieval Scaling (Accuracy + Latency)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | Dense + Sparse + RRF, static top_k |
+| 🔜 Next | Dynamic top_k based on query type, cross-encoder reranking when query is broad, semantic caching for repeated queries, Qdrant scaling (multi-instance / clustering), HNSW tuning + quantization (PQ/SQ) to reduce memory + speed search, data lifecycle: TTL expiration (e.g., delete after 90 days), soft delete + audit restore, backup/snapshots |
+
+### D) Context + Token Budgeting (Cost + Predictability)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | max 8 chunks in context |
+| 🔜 Next | Token budgeting per layer (retrieval width, context assembly, answer generation), adaptive context selection (use the best evidence first) |
+
+### E) Citations (Stronger + Simpler)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | LLM generates citations → we validate/clamp |
+| 🔜 Next | Metadata-only citations: citations are derived from the exact chunks sent to the model, removes LLM citation parsing entirely, makes citations always consistent and cheaper |
+
+### F) Guardrails + Security + Compliance
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | prompt injection checks + strict citation overlap rules |
+| 🔜 Next | PII redaction (query + transcript), sensitive content filters (rule-based + encoder-based), circuit breakers, graceful degradation / fault tolerance (if OpenAI down → fallback model; if Qdrant down → return clean error + keep API alive), audit logging: track which `meeting_id` was accessed and when |
+
+### G) Observability + Evaluation (Production Confidence)
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | working pipeline + basic logs |
+| 🔜 Next | Langfuse tracing (end-to-end observability), dataset creation for regression testing, RAGAS evaluation, drift monitoring (embedding drift / retrieval quality drift), CI gating (GitHub Actions): block deployments if quality drops on eval dataset |
+
+### H) Product/UX Enhancements
+
+| State | Implementation |
+|-------|----------------|
+| ✅ Today | Streamlit UI |
+| 🔜 Next | Prompt versioning in UI, better debugging view (retrieved chunks + scoring + filters), admin controls for retention policies and access auditing |
+
+### I) In-House Models + Fallback Strategy (Cost & Independence)
+
+| State | Implementation |
+|-------|----------------|
+| 🔜 Next | Local embedding model (SentenceTransformers / TEI), local reranker (cross-encoder), local generation model for cheaper mode, routing/fallback: in-house → OpenAI when needed (quality gate), OpenAI → in-house when cost or rate limits matter |
+
+---
+
+## 🧰 Tech Stack
+
+| Layer            | Technology |
+|------------------|------------|
+| API              | FastAPI |
+| Server           | Uvicorn |
+| LLM              | OpenAI (gpt-4o-mini) |
+| Embeddings       | OpenAI (text-embedding-3-small) |
+| Vector DB        | Qdrant (dense + sparse + RRF) |
+| UI               | Streamlit |
+| Validation       | Pydantic |
+| Config           | python-dotenv |
+| Package Manager  | uv |
+| Python           | 3.12 |
+
+---
+
+## 🧩 Why This Architecture Works
+
+- **Hybrid retrieval** improves recall (dense) + precision (sparse) with RRF fusion
+- **Metadata** enables time/speaker intelligence and strong filtering
+- **Citation guardrails** prevent hallucinated evidence
+- **Idempotent ingestion** prevents cost bloat
+- The **scaling paths are additive** — we can upgrade each layer without redesigning the whole system
 
 ---
 
