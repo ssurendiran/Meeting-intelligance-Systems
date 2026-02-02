@@ -1,379 +1,290 @@
-🧠 Meeting Intelligence Platform
-Scalable RAG-Based Transcript Understanding System
 
-A production-oriented Retrieval-Augmented Generation (RAG) system for ingesting meeting transcripts, performing hybrid retrieval (dense + sparse), and generating citation-grounded answers with guardrails.
 
-🚀 Overview
+```md
+# 🧠 Meeting Intelligence Platform
+### Scalable RAG-Based Transcript Understanding System
 
-This system allows you to:
+A production-oriented Retrieval-Augmented Generation (RAG) system for ingesting meeting transcripts, performing hybrid retrieval (dense + sparse), and generating citation-grounded answers with strict guardrails.
 
-Ingest meeting transcripts
+---
 
-Chunk and enrich transcript data
+## 🚀 Overview
 
-Embed content using OpenAI embeddings
+This system enables:
 
-Store vectors in Qdrant (dense + sparse hybrid search)
+- Transcript ingestion
+- Parsing and chunking with rich metadata
+- Hybrid dense + sparse retrieval (RRF fusion)
+- Citation-backed answer generation
+- Multi-turn conversation support
+- Clear roadmap for production scaling
 
-Retrieve relevant transcript sections
+---
 
-Generate citation-backed answers
+## 🏗 System Architecture
 
-Enforce strict evidence guardrails
+### Ingestion Flow
 
-Support multi-turn conversations
+User Upload  
+→ Validation  
+→ Duplicate Check  
+→ Parsing & Chunking  
+→ Metadata Enrichment  
+→ Embedding  
+→ Qdrant Vector Store  
 
-🏗 System Architecture
-flowchart TD
-    A[User Upload Transcript] --> B[Validation Layer]
-    B --> C[Duplicate Check]
-    C --> D[Parsing & Chunking]
-    D --> E[Metadata Enrichment]
-    E --> F[Embedding Service]
-    F --> G[Qdrant Vector Store]
+### Query Flow
 
-    H[User Query] --> I[Query Validation]
-    I --> J[Memory Lookup]
-    J --> K[Query Rewriting]
-    K --> L[Hybrid Retrieval]
-    L --> M[Context Builder]
-    M --> N[LLM Answer Generation]
-    N --> O[Citation Guardrails]
-    O --> P[Save Ask Memory]
-    P --> Q[Response]
+User Query  
+→ Rate Limit & Guardrails  
+→ Memory Lookup  
+→ Time/Speaker Parsing  
+→ Query Rewriting  
+→ Hybrid Retrieval (Dense + Sparse)  
+→ Context Builder  
+→ LLM Answer Generation  
+→ Citation Guardrails  
+→ Save Ask Memory  
+→ Response  
 
-📄 1. Synthetic Transcript Generation
-Purpose
+---
 
-Generate synthetic meeting transcripts for:
+## 1️⃣ Synthetic Transcript Generation
 
-Testing ingestion pipeline
+### Purpose
 
-Demonstrating retrieval logic
+Generate a synthetic meeting transcript based on user-provided topic and participants.
 
-Simulating realistic meetings
+Used for:
+- Testing ingestion pipeline
+- Demo environments
+- Simulating real meeting scenarios
 
-Production Alternative
+### Production Alternative
 
 In production:
 
-Real meeting transcripts are uploaded
+- Real transcripts will be uploaded.
+- Preprocessing occurs before ingestion.
+- Synthetic generation can be completely removed.
 
-Preprocessing applied before ingestion
+**Impact:** This step can be eliminated.
 
-Synthetic generation removed entirely
+---
 
-⚠️ Impact: This step is optional and can be fully eliminated in production environments.
+## 2️⃣ User Input Validation
 
-✅ 2. User Input Validation
-Required Inputs
+### Required Inputs
 
-topic: string
+- `topic` (string)
+- `participants` (2–10 names, comma-separated)
 
-participants: comma-separated list (2–10 names)
+### Validation Rules
 
-Validation Rules
-Condition	Result
-Missing topic	HTTP 400
-Missing participants	HTTP 400
-< 2 participants	HTTP 400
-> 10 participants	HTTP 400
-Why Strict Validation?
+| Condition | Result |
+|------------|--------|
+| Empty topic | HTTP 400 |
+| Empty participants | HTTP 400 |
+| < 2 participants | HTTP 400 |
+| > 10 participants | HTTP 400 |
 
-Ensures meaningful transcripts
+### Why Validation Exists
 
-Prevents generic LLM fallbacks
+- Ensures meaningful transcript generation
+- Prevents generic fallback meetings
+- Improves LLM output quality
+- Avoids system misuse
 
-Improves generation quality
+---
 
-Avoids system misuse
+## 3️⃣ Transcript Ingestion
 
-📥 3. Transcript Ingestion Flow
-3.1 Upload & Validation
-File Requirements
+### File Requirements
 
-Max size: 1 MB
-
-Must contain lines formatted as:
+- Maximum size: **1 MB**
+- Must contain at least one valid line in format:
 
 [HH:MM:SS] Speaker: text
 
+Invalid files → HTTP 400.
 
-Invalid files → HTTP 400
+---
 
-3.2 Duplicate Protection
+### Duplicate Protection
 
-SHA-256 hash computed
+- SHA-256 hash computed
+- Compared against stored ingestion hashes
+- If duplicate → return existing `meeting_id`
+- No re-embedding or re-indexing
 
-Compared against stored ingestion hashes
+Benefits:
+- Idempotent uploads
+- Avoids embedding cost duplication
+- Prevents vector DB bloat
 
-Outcomes
-Case	Behavior
-Duplicate	Return existing meeting_id
-New file	Continue processing
-Benefits
+---
 
-Idempotent ingestion
+## 4️⃣ Chunking Logic
 
-Cost savings (no re-embedding)
+### Strategy
 
-Prevent vector duplication
+- Tumbling window (no overlap)
+- Default: 8 turns per chunk
+- Final chunk may contain fewer turns
 
-✂️ 4. Chunking Strategy
-Tumbling Window (No Overlap)
+### Each Chunk Contains
 
-Default: 8 turns per chunk
+- chunk_id
+- Joined transcript text
+- meeting_id
+- file
+- line_start / line_end
+- time_start / time_end
+- time_start_sec / time_end_sec
+- speakers
 
-Last chunk may contain fewer turns
+### Metadata Enables
 
-Each Chunk Contains
+- Time filtering
+- Speaker filtering
+- Citation enforcement
+- Meeting overview summaries
 
-chunk_id
+---
 
-Combined transcript text
+## 5️⃣ Embedding Pipeline
 
-Metadata payload:
+### Batch Strategy
 
-meeting_id
-file
-line_start / line_end
-time_start / time_end
-time_start_sec / time_end_sec
-speakers
+- 32 chunks per API call
+- Reduces overhead
+- Improves throughput
 
-Metadata Enrichment
+### Model
 
-Derived fields enable:
+text-embedding-3-small  
+1536-dimensional vectors  
+Cosine similarity
 
-Time-based filtering
+### Retry Strategy
 
-Speaker filtering
+Attempt 1 → immediate  
+Attempt 2 → 0.5s delay  
+Attempt 3 → 1s delay  
+Attempt 4 → 2s delay  
+Fail after retries  
 
-Citation enforcement
+---
 
-Meeting summaries
+## 6️⃣ Vector Storage (Qdrant)
 
-🧮 5. Embedding Pipeline
-Batch Strategy
+### Collection
 
-32 chunks per OpenAI call
+meeting_chunks
 
-Reduces API overhead
+### Stored Per Chunk
 
-Model Used
-text-embedding-3-small
+- Dense vector (cosine similarity)
+- Sparse vector (keyword scoring)
+- Metadata payload
 
+---
 
-1536-dimensional vectors
+### Retrieval Strategy
 
-Cosine similarity search
+1. Dense search
+2. Sparse search
+3. RRF fusion
+4. Return top_k results (default = 10)
 
-Retry Logic
-Attempt	Delay
-1	Immediate
-2	0.5 sec
-3	1 sec
-4	2 sec
-Fail	Raise error
-🗂 6. Vector Storage (Qdrant)
-Collection: meeting_chunks
+Mandatory filter:
+- meeting_id
 
-Each chunk stores:
+Optional filters:
+- speaker_filter
+- time_filter
 
-Dense vector
+---
 
-Sparse vector
-
-Metadata payload
-
-Hybrid Retrieval Strategy
-flowchart LR
-    Q[Query Embedding] --> D[Dense Search]
-    Q --> S[Sparse Search]
-    D --> RRF[Reciprocal Rank Fusion]
-    S --> RRF
-    RRF --> TOPK[Top-K Chunks]
-
-Filters
-Mandatory
-
-meeting_id
-
-Optional
-
-speaker_filter
-
-time_filter
-
-Default Configuration
-top_k = 10
-
-
-Overridable via config or request.
-
-🔎 7. Retrieval → Answer Flow
-Context Building
-
-pack_context():
-
-Deduplicates by chunk_id
-
-Max 8 chunks
-
-Formats:
-
-SOURCE: file:line_start-line_end
-chunk text
-
-
-Optional additions:
-
-Meeting overview
-
-Time filter notice
-
-Speaker filter notice
-
-Follow-up context
-
-Answer Generation
-
-Model:
-
-gpt-4o-mini
-
-
-Low temperature.
-
-Expected JSON output:
-
-{
-  "answer": "...",
-  "citations": [
-    {"file": "...", "line_start": 10, "line_end": 15}
-  ]
-}
-
-🛡 Citation Guardrails
-
-After LLM response:
-
-Check	Purpose
-Allowed ranges	Must match retrieved chunks
-Overlap check	Must overlap allowed lines
-Clamp	Trim citation range
-Drop	Remove invalid citations
-Dedupe	Merge duplicates
-Refuse	If no valid citation → "Not found in transcript."
-
-Ensures:
-
-No hallucinated citations
-
-No out-of-scope references
-
-Strict transcript grounding
-
-💬 Multi-Turn Memory
-Current
-
-In-memory OrderedDict
-
-Stores last Q&A per meeting
-
-Lost on restart
-
-Future
-
-Redis-backed memory
-
-Distributed support
-
-Audit-ready persistence
-
-🔁 Query Processing Pipeline
-sequenceDiagram
-    participant User
-    participant API
-    participant Retriever
-    participant LLM
-    participant Guardrails
-
-    User->>API: Ask Question
-    API->>Retriever: Hybrid Retrieval
-    Retriever-->>API: Retrieved Chunks
-    API->>LLM: Generate Answer
-    LLM-->>API: Answer + Citations
-    API->>Guardrails: Validate Citations
-    Guardrails-->>API: Cleaned Answer
-    API-->>User: Final Response
-
-📈 Current vs Future Scalability
-Area	Current	Future
-Ingestion	Single container	Distributed workers
-Jobs	In-memory	Redis queue
-Embeddings	Sync	Async / Parallel
-Memory	In-memory	Redis / DB
-Citation	LLM + Guardrails	Metadata-only citation
-Retrieval	Static top_k	Dynamic + Reranker
-🔐 Future Enhancements
-
-PII redaction layer
-
-Semantic caching
-
-Langfuse tracing
-
-RAGAS evaluation
-
-Drift monitoring
-
-GitHub CI validation
-
-Cross-encoder reranking
-
-Token budgeting
-
-TTL-based meeting deletion
-
-Multi-tenant collections
-
-Observability (Prometheus/Grafana)
-
-🧩 Tech Stack
-Layer	Technology
-API	FastAPI
-Server	Uvicorn
-LLM	OpenAI
-Embeddings	text-embedding-3-small
-Vector Store	Qdrant
-UI	Streamlit
-Validation	Pydantic
-Config	python-dotenv, PyYAML
-Package Manager	uv
-Python	3.12
-🧠 Architectural Philosophy
-
-Python-first for rapid RAG iteration
-
-Hybrid retrieval for precision + recall
-
-Strict citation guardrails for trust
-
-Designed to evolve into distributed architecture
-
-Modular components for enterprise scaling
-
-📌 Summary
-
-This is a production-oriented, scalable Meeting Intelligence RAG system with:
-
-Hybrid retrieval
-
-Strict evidence enforcement
-
-Multi-turn support
-
-Clear scaling roadmap
-
-Observability & compliance-ready design
+## 7️⃣ Answer Generation
+
+### Flow
+
+1. Build context (max 8 chunks)
+2. Include metadata filters if applied
+3. Send to LLM (gpt-4o-mini)
+4. Parse structured JSON output
+5. Apply citation guardrails
+6. Return final response
+
+---
+
+## Citation Guardrails
+
+- Citation must overlap retrieved chunks
+- Clamp line ranges to valid ranges
+- Drop invalid citations
+- Dedupe duplicates
+- If no valid citation → return:
+  "Not found in transcript."
+
+---
+
+## 8️⃣ Ask Memory (Multi-turn Support)
+
+Current:
+- In-memory storage
+- Lost on restart
+
+Future:
+- Redis / database-backed
+- Shared across replicas
+- Audit-ready
+
+---
+
+## 9️⃣ Future Scalability
+
+Planned improvements:
+
+- Redis job queue
+- Worker-based ingestion
+- Async embedding
+- Cross-encoder reranking
+- Dynamic top_k
+- Metadata-only citation
+- PII redaction
+- Semantic caching
+- Langfuse tracing
+- RAGAS evaluation
+- Drift monitoring
+- CI validation
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technology |
+|--------|------------|
+| API | FastAPI |
+| Server | Uvicorn |
+| LLM | OpenAI |
+| Embeddings | text-embedding-3-small |
+| Vector Store | Qdrant |
+| UI | Streamlit |
+| Validation | Pydantic |
+| Config | python-dotenv |
+| Package Manager | uv |
+| Python | 3.12 |
+
+---
+
+## 📌 Summary
+
+This is a scalable, production-oriented Meeting Intelligence RAG system designed with:
+
+- Hybrid retrieval
+- Strict evidence enforcement
+- Multi-turn conversation support
+- Clear scaling roadmap
+- Enterprise-ready extensibility
