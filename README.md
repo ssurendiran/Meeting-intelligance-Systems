@@ -461,3 +461,173 @@ This section lists every planned enhancement, grouped by layer, with a clear sca
 - **Citation guardrails** prevent hallucinated evidence
 - **Idempotent ingestion** prevents cost bloat
 - The **scaling paths are additive** — we can upgrade each layer without redesigning the whole system
+
+---
+
+## 🚀 Productionize, Scale & Deploy on a Hyper-Scaler
+
+### 🔒 Productionize
+
+Right now the app runs on Docker Compose with .env configs.
+To make it production-ready, I would:
+
+- Move secrets to a vault like AWS Secrets Manager or GCP Secret Manager.
+- Add proper health and readiness endpoints.
+- Use structured JSON logging with request IDs.
+- Add authentication (API keys or OAuth).
+- Keep rate limiting.
+- Run Qdrant as a managed service or dedicated cluster so data survives restarts.
+
+That makes the system secure, observable, and stable.
+
+### 📈 Make It Scalable
+
+Currently ingestion is synchronous and memory is in-process.
+To scale it, I would:
+
+- Move ingestion to a background job queue (Redis + workers).
+- Store follow-up memory in Redis instead of RAM.
+- Run multiple API replicas behind a load balancer.
+- Scale Qdrant horizontally or use a managed vector DB.
+
+The current design already supports horizontal scaling — embeddings are batched, queries are filtered by meeting_id, and retrieval is hybrid.
+
+### ☁️ Deploy on AWS (Same pattern for GCP/Azure)
+
+On AWS, I would:
+
+- Run API + UI as containers (ECS Fargate or EKS).
+- Use Qdrant Cloud or a managed vector DB.
+- Use ElastiCache (Redis) for jobs and memory.
+- Store metadata in RDS or DynamoDB.
+- Put ALB or API Gateway in front for TLS.
+- Use CloudWatch for logs and metrics.
+
+Same pattern applies on:
+
+- **GCP** → Cloud Run / GKE + Memorystore + Cloud SQL
+- **Azure** → Container Apps / AKS + Redis + Azure DB
+
+---
+
+## 🧠 RAG / LLM Approach & Decisions
+
+### 🤖 LLM
+
+- **Chosen:** gpt-4o-mini
+- Good balance of quality, cost, and latency.
+- Low temperature for factual, stable answers.
+
+### 🔎 Embeddings
+
+- **Chosen:** text-embedding-3-small
+- Same provider, simple batching, good retrieval quality.
+
+### 🗄️ Vector Database
+
+- **Chosen:** Qdrant
+- Supports dense + sparse + payload filtering in one system.
+- Easy hybrid retrieval and meeting-level filtering.
+
+### ⚙️ Orchestration
+
+- **Chosen:** Custom FastAPI pipeline
+- Gives full control over retrieval, context assembly, and citations.
+- No framework lock-in.
+
+### 📝 Prompt & Context Strategy
+
+- Versioned YAML prompts.
+- Cap at 8 retrieved chunks.
+- Deduplicate context.
+- Add meeting overview and filters.
+- For follow-ups, prepend last answer.
+
+This keeps tokens predictable and traceable.
+
+### 🛡️ Guardrails
+
+- Prompt injection check before retrieval.
+- Citations clamped strictly to retrieved lines.
+- If no valid evidence → refuse answer.
+- No hallucinated citations.
+
+### 🎯 Quality
+
+- Strict citation enforcement.
+- If evidence isn't valid, the system refuses to answer.
+- Formal eval (RAGAS, datasets) planned next.
+
+### 📊 Observability
+
+- Application logs today.
+- Optional Langfuse tracing.
+- Production would include full tracing + metrics.
+
+---
+
+## 🏗️ Key Technical Decisions (And Why)
+
+- **8-turn tumbling chunks** → coherent speaker context, predictable size.
+- **Hybrid retrieval (dense + sparse + RRF)** → better recall without reranker.
+- **Citation clamping** → never trust raw LLM citations.
+- **Idempotent ingest (SHA-256 hash)** → avoids duplicate embedding cost.
+- **Mandatory meeting_id filter** → no cross-meeting leakage.
+- **YAML versioned prompts** → change prompts without redeploy.
+- **In-memory follow-up memory (MVP)** → would move to Redis in production.
+- **Rate limiting + injection guard before retrieval** → protects system early.
+
+---
+
+## 🧑‍💻 Engineering Standards
+
+### ✅ Followed
+
+- Python 3.12 with type hints
+- Pydantic validation
+- Clean module structure
+- Dockerized API + UI
+- Unit tests (parser, citations)
+- E2E tests
+- Docs with architecture diagrams
+- Config & prompts outside code
+
+### ⚠️ Skipped (for v1 speed)
+
+- CI/CD (would add GitHub Actions)
+- Formal API versioning
+- Full OpenAPI examples
+- Full production observability
+
+I prioritized shipping a solid v1 quickly.
+
+---
+
+## 🤝 How I Used AI Tools
+
+I used AI tools Cursor for:
+
+- Boilerplate code
+- Test scaffolding
+- Refactoring
+- Draft documentation
+
+But I personally designed:
+
+- Chunking strategy
+- Hybrid retrieval logic
+- Citation guardrails
+- Prompt injection logic
+- Architecture decisions
+
+AI was a productivity multiplier, not the architect.
+
+---
+
+## 🔮 What I'd Improve With More Time
+
+- Redis-based persistent memory from day one.
+- Observability + evaluation pipeline early.
+- Add audio-to-transcript flow (Whisper).
+- Provide a full documented AWS deployment blueprint.
+- Add RAGAS with golden evaluation datasets.
