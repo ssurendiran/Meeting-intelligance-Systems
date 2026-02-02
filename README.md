@@ -73,8 +73,6 @@ User Query
 ## 📊 End-to-End Ask Flow (Implemented)
 
 
-## 📊 Multi-Turn Ask Flow (Implemented)
-
 ```mermaid
 flowchart TD
     subgraph UI
