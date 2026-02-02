@@ -2,7 +2,7 @@
 
 **Scalable RAG-Based Transcript Understanding System (Meeting Transcript Q&A)**
 
-We built a Meeting Intelligence system that ingests meeting transcripts, indexes them with rich metadata, and answers questions grounded strictly in transcript evidence — with citations that are validated against what was retrieved (no hallucinated references).
+Built a Meeting Intelligence system that ingests meeting transcripts, indexes them with rich metadata, and answers questions grounded strictly in transcript evidence — with citations that are validated against what was retrieved (no hallucinated references).
 
 > **Goal:** Given a meeting transcript, allow users to ask natural questions and get precise, citation-backed answers — reliably and safely.
 
