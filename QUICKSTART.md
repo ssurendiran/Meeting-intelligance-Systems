@@ -13,7 +13,7 @@ Get the Meeting Intelligence Platform running in minutes.
 
 ---
 
-## Option A: Docker Compose (recommended)
+##  Docker Compose (recommended)
 
 Everything runs in containers: Qdrant, API, and Streamlit UI.
 
@@ -38,31 +38,6 @@ docker compose up -d
 
 ---
 
-## Option B: Local development
-
-Run API and UI locally; use Docker only for Qdrant.
-
-```bash
-# 1. Start Qdrant
-docker compose up -d qdrant
-
-# 2. Install dependencies
-uv sync
-
-# 3. Configure env
-cp .env.example .env
-# Set OPENAI_API_KEY in .env
-
-# 4. Run API (terminal 1)
-uv run uvicorn app.main:app --reload --port 8000
-
-# 5. Run UI (terminal 2, from project root)
-uv run streamlit run ui/streamlit_app.py --server.port=8501
-```
-
-UI: http://localhost:8501 — `API_BASE` defaults to `http://localhost:8000`.
-
----
 
 ## First run: generate → ingest → ask
 
