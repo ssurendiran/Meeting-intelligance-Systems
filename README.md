@@ -331,7 +331,7 @@ We kept v1 simple to move fast, but the architecture is designed to scale withou
 
 ---
 
-## 🔮 Future Enhancements & Scalability Paths (Full List)
+## 🔮 Future Enhancements & Scalability Paths 
 
 This section lists every planned enhancement, grouped by layer, with a clear scaling path.
 
