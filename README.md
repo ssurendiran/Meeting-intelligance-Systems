@@ -621,12 +621,3 @@ This section lists every planned enhancement, grouped by layer, with a clear sca
 - **Idempotent ingestion** prevents cost bloat
 - The **scaling paths are additive** — we can upgrade each layer without redesigning the whole system
 
----
-
-## 🔮 What I'd Improve With More Time
-
-- Redis-based persistent memory from day one.
-- Observability + evaluation pipeline early.
-- Add audio-to-transcript flow (Whisper).
-- Provide a full documented AWS deployment blueprint.
-- Add RAGAS with golden evaluation datasets.
