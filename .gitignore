@@ -1,6 +1,6 @@
-# Data folder: keep folder, do not push contents
+# Data folder: push folder only, not inside content or dot-files
 data/*
-!data/.gitkeep
+data/.*
 
 # Environment files
 .env
