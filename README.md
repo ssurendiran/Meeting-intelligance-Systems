@@ -10,7 +10,7 @@ Built a Meeting Intelligence system that ingests meeting transcripts, indexes th
 
 ---
 
-## 🚀 What i have Built (Today)
+## 🚀 What I have Built 
 
 ### ✅ Core capabilities implemented
 
