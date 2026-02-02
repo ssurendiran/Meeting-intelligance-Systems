@@ -331,7 +331,6 @@ These are intentional tradeoffs for iteration speed.
 - Async embedding
 - Cross-encoder reranking 
 - Dynamic top_k
-- Metadata-only citations
 - PII redaction layer
 - Semantic caching
 - Langfuse tracing
