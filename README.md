@@ -525,7 +525,6 @@ But I personally designed:
 - Prompt injection logic
 - Architecture decisions
 
-AI was a productivity multiplier, not the architect.
 
 ---
 ## 🔮 Future Enhancements & Scalability Paths (Full List)
