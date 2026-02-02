@@ -6,7 +6,7 @@ We built a Meeting Intelligence system that ingests meeting transcripts, indexes
 
 > **Goal:** Given a meeting transcript, allow users to ask natural questions and get precise, citation-backed answers — reliably and safely.
 
-**[→ Quick start](QUICKSTART.md)** · [Prompt injection examples](#-prompt-injection-guardrails--example-questions)
+**[→ Quick start](QUICKSTART.md)** ·
 
 ---
 
