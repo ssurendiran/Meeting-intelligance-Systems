@@ -1,6 +1,7 @@
-# Data folder: push folder only, not inside content or dot-files
+# Data folder: push folder only; ignore all contents except .gitkeep (so folder exists on remote)
 data/*
 data/.*
+!data/.gitkeep
 
 # Environment files
 .env
