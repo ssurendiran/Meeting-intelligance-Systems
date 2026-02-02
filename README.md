@@ -311,6 +311,17 @@ I do not trust LLM citations blindly. I enforce:
 
 ---
 
+## 8️⃣ Multi-Turn Memory (Implemented + Future)
+
+I have stored last Q&A for follow-up questions keyed by `meeting_id`.
+
+| State   | Implementation |
+|---------|-----------------|
+| Current | In-memory OrderedDict (ASK_MEMORY), lost on restart |
+| Future  | Redis/DB-backed, shared across replicas, audit-ready |
+
+
+---
 ## Query category — rewriting and guardrails (Implemented)
 
 After multi-turn handling, the **query** used for retrieval is categorized and guarded as follows.
@@ -345,16 +356,6 @@ User questions are checked by `detect_prompt_injection` before retrieval; hits r
 
 ---
 
-## 8️⃣ Multi-Turn Memory (Implemented + Future)
-
-I have stored last Q&A for follow-up questions keyed by `meeting_id`.
-
-| State   | Implementation |
-|---------|-----------------|
-| Current | In-memory OrderedDict (ASK_MEMORY), lost on restart |
-| Future  | Redis/DB-backed, shared across replicas, audit-ready |
-
----
 
 ## 9️⃣ Current Limitations (Intentional Tradeoffs)
 
