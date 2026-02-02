@@ -148,39 +148,6 @@ def test_ask_unknown_question_refuses(client: TestClient, request):
 
 
 # -------------------------
-# Ask Stream (SSE)
-# -------------------------
-
-
-def test_ask_stream_returns_sse_with_final_answer(client: TestClient, request):
-    meeting_id = _ingest_one(client, request.node, str(SAMPLE_TRANSCRIPT))
-
-    payload = {"meeting_id": meeting_id, "question": "What were the main topics?"}
-    resp = client.post("/ask_stream", json=payload)
-
-    _log(
-        request.node,
-        "POST /ask_stream",
-        {"method": "POST", "url": "/ask_stream", "json": payload},
-        {"status_code": resp.status_code, "text": resp.text[:500] if resp.text else ""},
-    )
-
-    assert resp.status_code == 200, resp.text
-    assert "text/event-stream" in resp.headers.get("content-type", "")
-
-    events = _parse_sse_events(resp.text)
-    assert events, "Expected at least one SSE event"
-
-    final_events = [e for e in events if e.get("type") == "final"]
-    assert final_events, f"Expected final event, got events: {events}"
-    final_data = final_events[0]
-    assert "answer" in final_data
-    assert "citations" in final_data
-    assert isinstance(final_data["answer"], str) and final_data["answer"].strip()
-    assert isinstance(final_data["citations"], list)
-
-
-# -------------------------
 # Async Ingest + Job Status
 # -------------------------
 
@@ -283,16 +250,3 @@ def test_ask_unknown_or_invalid_meeting_id_returns_not_found(client: TestClient,
     assert data["citations"] == []
 
 
-def test_ask_stream_not_found_returns_404(client: TestClient, request):
-    # Valid UUID but no chunks indexed for it
-    unknown_meeting_id = "00000000-0000-0000-0000-000000000000"
-    resp = client.post("/ask_stream", json={"meeting_id": unknown_meeting_id, "question": "What was decided?"})
-
-    _log(
-        request.node,
-        "POST /ask_stream (unknown meeting)",
-        {"method": "POST", "url": "/ask_stream", "json": {"meeting_id": unknown_meeting_id, "question": "What was decided?"}},
-        {"status_code": resp.status_code, "text": resp.text[:200] if resp.text else ""},
-    )
-
-    assert resp.status_code == 404, resp.text

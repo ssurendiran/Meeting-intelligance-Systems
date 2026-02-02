@@ -6,7 +6,6 @@ import json
 from collections import OrderedDict
 from typing import List, Optional
 from fastapi.responses import StreamingResponse
-from app.rag.streamer import stream_answer_events
 from fastapi import (
     FastAPI,
     UploadFile,
@@ -140,6 +139,40 @@ def _parse_timestamps_from_question(text: str) -> List[str]:
     return out
 
 
+def _parse_speaker_from_question(text: str, known_speakers: Optional[List[str]] = None) -> Optional[str]:
+    """Extracts a speaker name from the question when it matches known meeting speakers (e.g. 'What did Alice say?'). Returns the speaker name or None.
+    Why available: Lets users filter by speaker via natural language like time; used for retrieval and context when known_speakers is available."""
+    if not (text or "").strip() or not known_speakers:
+        return None
+    q = text.strip().lower()
+    for speaker in known_speakers:
+        if not (speaker or "").strip():
+            continue
+        s = speaker.strip()
+        sl = s.lower()
+        if sl not in q:
+            continue
+        # Require word boundary so "Alice" does not match "Alicia"
+        if not re.search(r"\b" + re.escape(sl) + r"\b", q):
+            continue
+        # Require speaker-related phrase to avoid false positives
+        phrases = [
+            r"what did\s+" + re.escape(sl) + r"\s+say",
+            r"what did\s+" + re.escape(sl) + r"\s+think",
+            r"what did\s+" + re.escape(sl) + r"\s+mention",
+            r"what did\s+" + re.escape(sl) + r"\s+suggest",
+            r"\b" + re.escape(sl) + r"\s+said\b",
+            r"\b" + re.escape(sl) + r"\s+think",
+            r"\b" + re.escape(sl) + r"'s\b",
+            r"focus on\s+" + re.escape(sl),
+            r"only\s+" + re.escape(sl),
+            r"from\s+" + re.escape(sl),
+        ]
+        if any(re.search(p, q) for p in phrases):
+            return s
+    return None
+
+
 NO_TRANSCRIPT_FOR_TIME = "No transcript found for that time."
 
 
@@ -163,6 +196,15 @@ def _ask_retrieve_and_build_context(
         parsed_ts = _parse_timestamps_from_question(stored_previous_question)
     meeting_meta = load_meeting_metadata(meeting_id, data_root)
 
+    # Parse speaker from question (like time) when known speakers available; request body overrides
+    known_speakers = [s["speaker"] for s in (meeting_meta.get("speaker_stats") or [])] if meeting_meta else []
+    parsed_speaker = _parse_speaker_from_question(question, known_speakers)
+    if not parsed_speaker and previous_question:
+        parsed_speaker = _parse_speaker_from_question(previous_question, known_speakers)
+    if not parsed_speaker and stored_previous_question:
+        parsed_speaker = _parse_speaker_from_question(stored_previous_question, known_speakers)
+    effective_speaker = speaker_filter or parsed_speaker
+
     # For follow-ups, use stored previous question + semantic anchor (avoid user phrase as query noise)
     use_for_retrieval = question
     if _is_follow_up(question, has_memory=bool(stored_previous_question or previous_question)) and (stored_previous_question or previous_question):
@@ -170,13 +212,13 @@ def _ask_retrieve_and_build_context(
 
     queries = rewrite_queries(use_for_retrieval)
     t_retr = time.perf_counter()
-    retrieved = retrieve_multi(meeting_id, queries, top_k=top_k, speaker_filter=speaker_filter)
+    retrieved = retrieve_multi(meeting_id, queries, top_k=top_k, speaker_filter=effective_speaker)
     retr_ms = (time.perf_counter() - t_retr) * 1000.0
 
     if parsed_ts:
         req_sec = timestamp_to_seconds(parsed_ts[0])
         time_chunks = retrieve_chunks_containing_time(
-            meeting_id, req_sec, limit=20, speaker_filter=speaker_filter
+            meeting_id, req_sec, limit=20, speaker_filter=effective_speaker
         )
         if time_chunks:
             by_cid = {r["chunk_id"]: r for r in time_chunks}
@@ -231,9 +273,9 @@ def _ask_retrieve_and_build_context(
             "If the context has no content for this time, respond exactly: No transcript found for that time.\n\n---\n\n"
             + context
         )
-    if speaker_filter:
+    if effective_speaker:
         context = (
-            f"SPEAKER FILTER: The user asked to focus on speaker \"{speaker_filter}\". "
+            f"SPEAKER FILTER: The user asked to focus on speaker \"{effective_speaker}\". "
             "Base your answer only on what this speaker said in the context below.\n\n---\n\n"
             + context
         )
@@ -452,58 +494,6 @@ def ask(req: AskRequest, request: Request):
 
 
 # -------------------------
-# Ask Stream (SSE)
-# -------------------------
-
-@app.post("/ask_stream")
-def ask_stream(req: AskRequest, request: Request):
-    """Streams the RAG answer as Server-Sent Events (delta text then final answer with citations). Same retrieval and context as /ask.
-    Why available: Lets the UI show the answer as it is generated for better perceived latency."""
-    rate_limiter.check(request)
-    try:
-        uuid.UUID(req.meeting_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid meeting_id (must be UUID)")
-    top_k = req.top_k or settings.retrieve_top_k
-    if top_k <= 0:
-        raise HTTPException(status_code=400, detail="top_k must be > 0")
-
-    hit, _ = detect_prompt_injection(req.question)
-    if hit:
-        raise HTTPException(status_code=400, detail="Query contains disallowed content.")
-
-    memory = _get_ask_memory(req.meeting_id)
-    stored_q = memory["question"] if memory and _is_follow_up(req.question, has_memory=bool(memory)) else None
-    stored_a = memory["answer"] if memory and _is_follow_up(req.question, has_memory=bool(memory)) else None
-
-    status, data = _ask_retrieve_and_build_context(
-        req.meeting_id, req.question, req.previous_question, top_k, DATA_ROOT,
-        speaker_filter=req.speaker_filter,
-        stored_previous_question=stored_q,
-        stored_previous_answer=stored_a,
-    )
-    if status != "ok":
-        detail = NO_TRANSCRIPT_FOR_TIME if status == "time_not_found" else "Not found in transcript."
-        raise HTTPException(status_code=404, detail=detail)
-
-    retrieved = data["retrieved"]
-    context = data["context"]
-
-    def event_stream():
-        """Yields SSE data lines from the RAG stream and saves ask memory when the final event is sent.
-        Why available: Encapsulates streaming + memory save so ask_stream stays simple."""
-        for ev in stream_answer_events(req.question, context, retrieved):
-            if ev.get("type") == "final":
-                _save_ask_memory(req.meeting_id, req.question, ev.get("answer", ""), retrieved)
-            yield f"data: {json.dumps(ev)}\n\n"
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-    )
-
-
-# -------------------------
 # Async Ingest (large files)
 # -------------------------
 
@@ -675,7 +665,10 @@ def generate_sample_transcript(req: GenerateSampleTranscriptRequest, request: Re
     Why available: Lets users create demo transcripts for testing ingest and RAG without uploading a real file."""
     rate_limiter.check(request)
 
-    topic = (req.topic or "product planning meeting").strip()
+    topic = (req.topic or "").strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="Topic is required")
+    
     participants = req.participants if req.participants else None
     if participants:
         names = [n.strip() for n in participants if n and n.strip()]
