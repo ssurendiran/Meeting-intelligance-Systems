@@ -1,3 +1,6 @@
+# Data folder (do not push)
+data/
+
 # Environment files
 .env
 .env.*
