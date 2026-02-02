@@ -8,7 +8,7 @@ We built a Meeting Intelligence system that ingests meeting transcripts, indexes
 
 ---
 
-## 🚀 What We Built (Today)
+## 🚀 What We Built (Mini version)
 
 ### ✅ Core capabilities implemented
 
